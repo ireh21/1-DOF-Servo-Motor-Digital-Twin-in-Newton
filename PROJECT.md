@@ -15,7 +15,7 @@ Newton 기반 단일 모터 디지털 트윈을 구성한다.
 - [전체 제어 구조 및 개념](docs/01_project_overview.md)
 - [Newton 및 Actuator](docs/02_newton_actuator.md)
 - [EtherCAT, CiA402, CSP](docs/03_ethercat_cia402_csp.md)
-- [환경 및 Baseline 실행](docs/04_environment_baseline.md)
+- [환경 및 Baseline 실행](docs/04_newton_ikcable_jujeori.md)
 - [WMX3 Data Log](docs/05_wmx3_data_log.md)
 
 
