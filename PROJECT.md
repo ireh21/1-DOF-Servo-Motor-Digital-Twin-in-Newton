@@ -12,12 +12,29 @@ Newton 기반 단일 모터 디지털 트윈을 구성한다.
 
 ## 문서
 
+
+### docs/
 - [전체 제어 구조 및 개념](docs/01_project_overview.md)
 - [EtherCAT, CiA402, CSP](docs/02_ethercat_cia402_csp.md)
 - [Newton 및 Actuator](docs/03_newton_actuator.md)
 - [환경 및 Baseline 실행](docs/04_newton_ikcable_jujeori.md)
 - [WMX3 Data Log 및 WMX](docs/05_wmx3_data_log.md)
 
+
+
+### code/
+인턴십 프로젝트 수행을 위해 제공받은 단일 모터 디지털 트윈 및 캘리브레이션 시작용 코드이다.
+- [단일 모터 디지털 트윈](code/single_motor_twin.py)  
+  WMX3의 Command Position을 입력받아 단일 서보 모터의 Feedback Position, Velocity, Torque를 모사하는 Newton 기반 1-DOF 디지털 트윈 코드이다.  
+  PID 제어, 지령 지연, 토크 제한, 관성 및 마찰 등의 파라미터가 포함되어 있다.
+
+- [합성 WMX3 로그 생성](code/generate_sample_log.py)  
+  실제 WMX3 실측 데이터를 취득하기 전에 피팅 과정을 시험할 수 있도록 가상의 WMX3 Data Log를 생성하는 코드이다.  
+  Command Position, Feedback Position, Feedback Velocity, Feedback Torque 형식의 데이터를 생성한다.
+
+- [파라미터 피팅 파이프라인](code/fit_pipeline_skeleton.py)  
+  WMX3 로그를 불러와 Newton 트윈의 출력과 비교하고, 오차를 계산하여 모터 파라미터를 조정하기 위한 피팅 코드이다.  
+  현재는 예시로 관성 값을 변화시키며 오차가 가장 작은 값을 찾는 과정이 구현되어 있다.
 
 
 
