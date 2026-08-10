@@ -225,7 +225,28 @@ pip install pycollada
 다시 jupyter lab에 연결해서 맨 위의 셀부터 다시 실행하면 오류가 해결된다. 
 ```
 
-![Franka Robot](../images/franka_robot.png)
+![Franka Robot](../images/4_franka_robot.png)
+
+
+<실험>  
+joint_target_ke -> 목표 위치에서 벗어나면 원래 위치로 되돌리려는 힘/토크
+joint_target_kd -> 움직이는 속도를 억제해서 흔들림을 줄이는 힘/토크
+
+해당 값을 1. 예제에서 주어진 그대로 2. 원래의 10% 3. 원래의 1% 4. 원래의 0.1%로 바꾸어 실험을 진행.  
+사진은 모두 마지막 프레임을 기준으로 한다
+
+<1번 사진>  
+![1번 사진](../images/4_EX_1.png)
+
+<2번 사진>  
+![2번 사진](../images/4_EX_2.png)
+
+<3번 사진>  
+![3번 사진](../images/4_EX_3.png)
+
+<4번 사진>  
+![4번 사진](../images/4_EX_4.png)
+> 4번의 경우 물리엔진에 따라 로봇팔이 충분히 쓰러질 수 있도록 더 길에 5초로 시뮬레이션 시간을 늘림
 
 ---
 
@@ -235,7 +256,7 @@ pip install pycollada
 
 Franka 로봇에 PD 기반 joint target 제어를 설정하고, `Control.joint_target_pos`를 통해 특정 관절에 사인파 형태의 목표 위치를 입력하여 MuJoCo Solver로 3초간 움직임을 시뮬레이션한다.
 
-![Franka Robot Sin Move](../images/franka_robot_sinmv.png)
+![Franka Robot Sin Move](../images/4_franka_robot_sinmv.png)
 
 ---
 
@@ -345,12 +366,13 @@ ViewerViser에 표시
 
 ![step3](../images/IK_step3.png)
 
+
 ## Coupled Manipulation : Franka Cable Pick-and-Place
 > 해당 내용은 원래 6) IK Path Following의 다음 내용이지만 deformable body에 대해 다루기 때문에 중요하다고 생각해 따로 뺌. 
 
 6)과 동일히 IK 패턴을 사용하지만, **변형 가능한 케이블을 집어서 목표 위치로 옮기는 작업** (1개 이상의 Solver가 필요)에 대해 다룬다.
 
-### 왜 Coupling이 필요한가?
+### Why Coupling?
 Franka 로봇팔 → Rigid Body  | 변형 가능한 케이블 → Deformable Body  
 따라서 서로 다른 수치해석 방식이 필요하다. 
 
@@ -397,4 +419,220 @@ proxy body : 다른 solver 안에 실제 그리퍼를 대신 보여주는 '대�
              따라서 MuJoCo가 관리하는 실제 gripper body 일부를 VBD 쪽에 
              "Proxy Body"로서 노출시키는 것이다. 
 
+```
+#### • 코드 실행 과정
+7)의 첫번째 셸 실행 과정에서 newton의 버젼이 1.2.1으로 coupled solver API 사용 불가.   
+터미널에서 newton-env 활성화된 상태로
+```
+python -m pip install --upgrade "newton==1.4.0"
+python -m pip install --upgrade "newton[sim]==1.4.0"
+```
+입력해서 Newton을 1.4.0으로 올린 후 jupyter lab 재실행.  
+업데이트 함에 따라서 첫번째 과정인 setup 및 import에서 코드 변경
+```
+#warp.config.quiet = True  <- 원래 코드.  
+예전 방식이 이제 deprecated 됐으니, 새 방식 쓰라고 떠서 바꿈.
+
+wp.config.log_level = wp.LOG_WARNING  
+```
+
+### Build the Coupled Scene 
+두 개의 서브시스템, 즉 Franka 로봇팔과 VBD 케이블을 모두 포함하는 하나의 Model을 생성한다.  
+그리고 body, joint, shape의 index를 따로 기록해 둔다. 이렇게 하는 이유는 Coupled Solver를 구성할 때 각각의 솔버가 자신이 담당하는 모델 영역만 전달받도록 하기 위해서이다.
+```
+전체 Model
+├─ Franka 영역
+│   └─ body / joint / shape index 기록
+│
+└─ Cable 영역
+    └─ body / joint / shape index 기록
+```
+
+#### • 전체 코드의 흐름 
+ ```
+ 하나의 ModelBuilder 생성     
+ Franka URDF 추가
+ Franka 제어 파라미터 설정
+ Franka에 속하는 body/joint/shape 번호 기록
+ Cable의 초기 위치와 segment 자세 생성
+ add_rod()로 deformable cable 생성
+ Cable에 속하는 body/joint/shape 번호 기록
+ Franka gripper body 찾기
+ Ground 추가 (바닥 생성)
+ Model finalize
+ Franka 영역 / Cable 영역 / Gripper 영역 정보를 반환
+ ```
+
+ Franka와 deformable cable을 하나의 Newton Model에 구성하는 단계.  
+ Franka는 URDF를 통해 articulated rigid body로 추가하고,  
+ cable은 `add_rod()`를 이용해 여러 segment로 이루어진 rod 형태로 모델링한다. Cable의 `stretch_stiffness`와 `bend_stiffness`를 통해 길이 방향 변형과 굽힘 특성을 각각 설정하며,  
+ Franka와 Cable의 body/joint/shape index를 분리해 이후 MuJoCo와 VBD가 각 subsystem을 담당하도록 준비한다.  
+ 또한 Gripper body를 별도로 식별하여 이후 `SolverCoupledProxy`를 통한 Cable-Gripper 접촉에 사용한다.
+
+
+### Create the Coupled Solvers
+ Coupled Solver는 두 개의 model view를 전달받아, MuJoCo에는 Franka의 body와 joint를, VBD에는 cable의 body와 joint를 담당하게 한다. (앞의 셀에서 만들어 둔 영역들을 실제로 각각의 solver로 배정)  
+ MuJoCo 쪽에 있는 gripper body를 proxy coupling을 통해 VBD 쪽에 노출해서 franka와 cable 상호작용을 연결하는 단계. 
+
+
+#### • 전체 코드의 흐름
+```
+앞에서 생성한 전체 Model
+│
+├─ Franka bodies/joints
+├─ Cable bodies/joints
+├─ Gripper bodies
+└─ Ground shapes
+        ↓
+CollisionPipeline 생성
+→ Franka/Cable ↔ Ground 접촉 준비
+        ↓
+SolverCoupledProxy 생성
+        │
+        ├─ "mjc"
+        │    Franka → SolverMuJoCo
+        │
+        └─ "vbd"
+             Cable → SolverVBD
+        ↓
+Proxy Coupling 설정
+Franka의 Gripper body
+MuJoCo → VBD 쪽에 Proxy로 노출
+        ↓
+VBD가
+Cable ↔ Gripper 접촉을 계산할 수 있음
+        ↓
+solver.prepare_contacts(contacts)
+        ↓
+Coupled Solver 준비 완료
+```
+전체 모델을 Franka 영역과 Cable 영역으로 나누어 각각 MuJoCo와 VBD Solver에 배정하고, MuJoCo가 계산하는 Gripper body를 VBD 쪽에 Proxy로 노출하여 deformable Cable과 Gripper의 접촉이 가능하도록 Coupled Solver를 구성하는 코드.
+
+### Preview the Coupled Scene
+IK와 실제 작업 동작 추가 전, Franka 로봇팔과 cable이 배치된 초기 장면을 렌더링해 확인하는 과정
+
+![preview Franka_cable](../images/7_Coupled_preview.png)
+
+
+### Build the Franka IK System
+IK 계산은 Franka 로봇만 포함된 별도의 모델에서 수행.  
+Cable까지 들어있는 복잡한 전체 모델에서 IK를 풀지 않고, Franka만 따로 별도로 계산하고 그 결과만 전체 Coupled Model에 전달하는 구조.  
+
+Franka-only 모델에서 IK를 풀어서 얻은 관절값을 Coupled Model의 앞쪽 Franka joint 영역에 그대로 적용하는 것. 
+
+ 
+#### • 전체 코드의 흐름
+```
+1. 작업 계획 생성
+build_keyframes()
+→ 접근 / 내려가기 / 집기 / 들기 / 이동 / 놓기 등의 목표 생성
+
+2. IK 시스템 준비
+Franka-only Model
+→ Position + Rotation + Joint Limit
+→ IKSolver 생성
+
+3. 실제 Pick-and-Place 반복 실행
+현재 목표 pose + gripper 값 결정
+→ IK 목표 갱신
+→ IK로 arm joint 목표 계산
+→ finger joint 목표 설정
+→ Control에 전달
+→ MuJoCo + VBD + Proxy Coupling
+→ Franka와 Cable 상태 갱신
+→ 다음 목표로 반복
+```
+
+
+### Run the Cable Pick-and-Place
+
+각 렌더링 프레임마다 다음 과정을 반복  
+매 프레임마다 로봇 손이 가야 할 위치를 정하고, IK로 필요한 관절각을 구한 뒤, IK로 구한 Franka의 관절 좌표를 Coupled Model의 joint target에 복사하고, 접촉 정보를 새로 갱신한 뒤 Cable과의 접촉·변형까지 같이 계산
+
+
+#### • 전체 코드의 흐름
+```
+현재 sim_time 확인
+↓
+현재 keyframe 구간 결정
+↓
+앞·뒤 keyframe 사이를 보간
+→ End Effector 목표 위치/방향
+→ Gripper 개폐값
+↓
+IK target 갱신
+↓
+IKSolver 실행
+→ 목표 자세를 만족하는 Franka 관절값 계산
+↓
+계산된 관절값을
+Coupled Model의 joint target에 복사
+↓
+Gripper finger 목표값 반영
+↓
+Contact 갱신
+↓
+Coupled Solver 실행
+├─ MuJoCo → Franka 운동 계산
+├─ VBD → Cable 변형 계산
+└─ Proxy → Gripper ↔ Cable 접촉 연결
+↓
+Franka + Cable의 다음 State 계산
+↓
+ViewerViser에 기록
+↓
+다음 프레임 반복
+```
+![7_1](../images/7_1.png)
+![7_2](../images/7_2.png)
+![7_3](../images/7_3.png)
+![7_4](../images/7_4.png)
+
+
+
+## 단일 무부하 서보 모터는 어떻게 만들어야할까...에 대해
+
+`ModelBuilder`로 회전축 하나를 만들고, 그 축의 물리 파라미터와 actuator 파라미터를 실제 WMX 응답에 맞게 조정하는 것
+
+```
+WMX Command Position
+        ↓
+   지령 지연
+ delay_steps
+        ↓
+서보 드라이브 제어기 근사
+ PD 또는 PID
+ Kp / Ki / Kd
+        ↓
+토크 제한
+effort_limit / clamping
+        ↓
+1-DOF Motor Plant
+┌─────────────────────┐
+│ 관성 J              │
+│ 점성마찰 b          │
+│ 쿨롱마찰 τc         │
+└─────────────────────┘
+        ↓
+q, q̇, torque
+        ↓
+WMX Feedback와 비교
+```
+```
+<Parameter 후보>
+[Drive / Controller]
+Kp
+Ki
+Kd
+integral_max
+delay_steps
+
+[Motor / Mechanical Plant]
+J  : 유효 관성
+b  : 점성 마찰
+τc : 쿨롱 마찰
+
+[Limits]
+τmax : 토크 제한
+필요하면 속도 제한
 ```
