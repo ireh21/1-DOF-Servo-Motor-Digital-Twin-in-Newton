@@ -51,7 +51,7 @@ FBKTRQ0
   (Newton의 토크 응답과 비교)
 
 
-## 3. 단일 모터 데모기 구성 파악
+## 3. 단일 모터 데모기 구성 파악 (추후 완성)
 여기서 말하는 단일 모터 데모기는
 실제 WMX3에 연결되어 실험에 사용할 하나의 서보 모터 시험 장치를 의미한다.
 
@@ -77,8 +77,41 @@ WMX3 자체의 사양과 별개로 다음 항목을 실제 데모기에서 확�
 WMX/EtherCAT의 신호 단위와 Newton에서 사용하는 SI 단위가 다를 수 있으므로,
 피팅 전에 각 신호의 변환 기준을 확정해야 한다.
 
+WMX3 축을 rad 기준의 User Unit으로 설정하여 Newton과 맞춘다는 가정하에 작성한다.
+추가로, 단일 모터는 감속기 없는 23-bit absolute encoder 사용한다고 가정한다.
+
+- Encoder Resolution: 8,388,608 pulse/rev
+- Reduction Gear: 없음 (1:1)
+- Position Control Resolution: 1 U = 1 μrad = 0.000001 rad
+
 ### 4.1 Position
+Master Gear Ratio의 분자는 1회전 펄스 수, 즉 [모터 엔코더 분해능 x 감속비] 인데, 감속기는 없기 때문에 모터 엔코터 분해능은 **8388608 pulse/rev**이다. 여기서 rev는 1회전이다.   
+모터가 1회전을 하기위해 8388608의 pulse가 필요한 것이다.  
+
+Master Gear Ratio의 분모는 [1회전 이동량 / 제어 사양] 이다.  
+1회전 이동량 = 2π rad/rev
+제어 사양 = 1 U = 1 μrad = 0.000001 rad  
+분모 = 6,283,185 U/rev
+
+따라서 WMX의 숫자는 이렇게 해석된다
+```
+WMX Position = 1        → 0.000001 rad
+WMX Position = 1000     → 0.001 rad
+WMX Position = 1,000,000 → 1 rad
+WMX Position ≈ 6,283,185 → 2π rad = 1회전
+```
+```
+Newton Position [rad] = WMX Position [U] × 0.000001
+```
+만약 1U = 1rad 라면 이때는 동일하다. 
 
 ### 4.2 Velocity
+Velocity는 Position의 시간에 따른 변화량이므로,
+Position에서 설정한 User Unit의 변환 비율을 동일하게 사용한다.
+```
+Newton Velocity [rad/s] = WMX Velocity [U/s] × 0.000001
+```
 
-### 4.3 Torque
+
+
+### 4.3 Torque (추후 작성)
