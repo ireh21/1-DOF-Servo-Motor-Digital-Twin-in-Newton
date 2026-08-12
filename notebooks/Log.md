@@ -34,3 +34,18 @@ simulate_motor()
 ↓
 7. Position / Velocity / Torque 그래프
 ```
+
+- 03_wmx_newton_comparison 파일
+```
+WMX log load
+↓
+TIME / CMDPOS0 / FBKPOS0 / FBKVEL0 / FBKTRQ0 추출
+↓
+CMDPOS0 → Newton 입력
+↓
+Newton feedback 생성
+↓
+WMX ↔ Newton 비교
+↓
+오차 계산
+```
