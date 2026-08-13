@@ -44,11 +44,87 @@ kd가 크면? 오차 변화율에 미리 반응해 overshoot, Ts 감소. 안정�
 
 ---
 
-추가로 할 것들
-6. WMX 로그 읽기                                 
-7. WMX CMDPOS를 Newton 입력으로 사용        
-8. WMX FBKPOS vs Newton FBKPOS 비교          
-9. WMX FBKVEL vs Newton FBKVEL 비교          
-10. WMX FBKTRQ vs Newton Torque 비교         
-11. 오차 함수(RMSE 등) 계산                  
-12. Parameter 자동 fitting   
+
+WMX 로그를 읽고
+모터 파라미터를 추정하고
+시뮬레이션 결과를 실제 log와 비교하고
+적절한 오차를 계산하고
+결과를 문서화하는 흐름
+이 전체를 하나의 체계로 정리해야 합니다.
+
+WMX 실측 로그를 입력으로 받아, Newton 기반 단일 모터 디지털 트윈의 파라미터를 자동으로 추정하고, 실측 응답을 재현할 수 있는 가이드와 실행 파이프라인을 만든다.
+
+
+
+지금 당장 할 일: 가장 현실적인 작업 목록
+
+현재 노트북 내용을 기반으로 “프로젝트 개요 문서” 작성
+01/02/03의 역할 정리
+단일 모터 디지털 트윈 목표 정리
+
+실측 WMX 로그 여러 개로 테스트
+파라미터가 잘 안 맞는 경우 원인 분석
+kp, kd, inertia, delay 우선순위 조정
+
+docs 정리
+프로젝트 가이드 초안 작성
+“what/why/how/limitations” 형식으로 정리
+
+
+
+
+
+
+추천 방식
+가장 현실적인 방식은 이 3단계입니다.
+
+03의 실측 로그를 기준으로 objective function 정의
+범위를 정한 뒤 전역 탐색으로 초기값 추정
+그값을 L-BFGS-B로 정밀 최적화
+다른 로그로 validation
+
+가장 추천하는 피팅 방법
+이건 지금 구조에 제일 잘 맞습니다.
+
+1차: coarse global search
+differential_evolution
+2차: local refinement
+minimize(..., method="L-BFGS-B")
+3차: validation
+다른 WMX 로그로 최종 확인
+이 조합이 “디지털 트윈”에 가장 적합합니다.
+
+Step response log
+예: +90 deg 또는 -90 deg 계단 입력
+목적:
+kp, kd, delay_steps
+overshoot, rise time, settling time
+inertia의 영향 확인
+꼭 필요한 이유:
+가장 기본적이고 식별성이 좋음
+Reverse-direction step or zero-crossing log
+예: 0 → +45 → 0 → -45 → 0
+목적:
+coulomb
+direction change 시 마찰
+static friction / dead-zone 확인
+꼭 필요한 이유:
+Coulomb friction은 방향 전환 구간에서만 드러남
+Sine or low-frequency periodic log
+예: 0.2 ~ 1 Hz, amplitude 10~30 deg
+목적:
+phase lag
+gain attenuation
+damping
+viscous와 kp,kd의 분리
+꼭 필요한 이유:
+step만으로는 속도 지연과 damping을 분리하기 어려움
+Chirp log
+예: 0.2 Hz → 5 Hz
+목적:
+bandwidth
+고주파에서의 지연
+inertia와 delay 분리
+실제 주파수 응답 특성
+꼭 필요한 이유:
+모터가 “어떤 대역폭까지 잘 추종하는지”를 보기에 좋음

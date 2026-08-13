@@ -11,7 +11,7 @@ franka_cube/
 └── source/franka_cube/      # Isaac Lab 확장 패키지 소스
 ```
 
-현재는 GPU (NVDIA CUDA GPU)를 사용하지 않기에 02_isaaclab_newton...ipynb 해당 파일보다는 `01_newton_ikcable_notebook.ipynb`을 실행해본다.
+현재는 GPU (NVDIA CUDA GPU)를 사용하지 않기에 02_isaaclab_newton...ipynb 해당 파일보다는 `01_newton_ikcable_notebook.ipynb`을 실행해본다. (2026/08/07)
 
 ## 일단 적어나가는 개념 (노트에 없는 내용 위주)
 
