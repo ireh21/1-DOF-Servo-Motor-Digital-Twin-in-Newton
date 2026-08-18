@@ -24,9 +24,6 @@ Newton 기반 단일 모터 디지털 트윈을 구성한다.
 
 ### code/
 인턴십 프로젝트 수행을 위해 제공받은 단일 모터 디지털 트윈 및 캘리브레이션 시작용 코드이다.
-- [단일 모터 디지털 트윈](code/single_motor_twin.py)  
-  WMX3의 Command Position을 입력받아 단일 서보 모터의 Feedback Position, Velocity, Torque를 모사하는 Newton 기반 1-DOF 디지털 트윈 코드이다.  
-  PID 제어, 지령 지연, 토크 제한, 관성 및 마찰 등의 파라미터가 포함되어 있다.
 
 - [합성 WMX3 로그 생성](code/generate_sample_log.py)  
   실제 WMX3 실측 데이터를 취득하기 전에 피팅 과정을 시험할 수 있도록 가상의 WMX3 Data Log를 생성하는 코드이다.  
@@ -36,6 +33,45 @@ Newton 기반 단일 모터 디지털 트윈을 구성한다.
   WMX3 로그를 불러와 Newton 트윈의 출력과 비교하고, 오차를 계산하여 모터 파라미터를 조정하기 위한 피팅 코드이다.  
   현재는 예시로 관성 값을 변화시키며 오차가 가장 작은 값을 찾는 과정이 구현되어 있다.
 
+- [단일 모터 디지털 트윈](code/single_motor_twin.py)  
+  WMX3의 Command Position을 입력받아 단일 서보 모터의 Feedback Position, Velocity, Torque를 모사하는 Newton 기반 1-DOF 디지털 트윈 코드이다.  
+  PID 제어, 지령 지연, 토크 제한, 관성 및 마찰 등의 파라미터와 Step/Sine/Chirp/S-curve Motion Profile, Viser Viewer가 포함되어 있다.
+
+## 단일 모터 실행
+
+Newton/Warp가 설치된 가상환경에서 프로젝트 루트를 기준으로 실행한다.
+
+```bash
+PYTHONPATH=code python code/single_motor_twin.py --profile scurve --viewer
+```
+
+노트북에서 WMX 로그와 바로 연결할 때는 다음과 같이 사용한다. 로그의 위치,
+속도, 토크 단위가 이미 rad, rad/s, N·m이면 scale은 모두 `1.0`을 사용한다.
+
+```python
+from single_motor_twin import MotorParams, simulate_wmx_log
+
+simulation, measurement = simulate_wmx_log(
+    "path/to/wmx_log.txt",
+    MotorParams(
+        kp=8.0,
+        ki=0.0,
+        kd=0.6,
+        inertia=0.02,
+        viscous=0.01,
+        coulomb=0.0,
+        effort_limit=5.0,
+        delay_steps=1,
+    ),
+    time_unit="ms",
+    position_scale=1.0,
+    velocity_scale=1.0,
+    torque_scale=1.0,
+    use_viewer=True,
+)
+
+simulation["viewer"].show_notebook(width="100%", height=600)
+```
 
 
 
