@@ -1,0 +1,37 @@
+{
+  "motor_params": {
+    "kp": 10.818738409610221,
+    "ki": 1.8275464968458262,
+    "kd": 0.8073282640652196,
+    "integral_max": 5.0,
+    "continuous_torque_limit": 5.224668240329717,
+    "peak_torque_limit": 5.224668240329717,
+    "thermal_time_constant": 10.0,
+    "inertia": 0.0295749073214255,
+    "viscous": 0.023469751764997535,
+    "coulomb": 0.002761570266102421,
+    "delay_steps": 2
+  },
+  "fit_logs": {
+    "step": "/home/ireh21/rei/synthetic_wmx_logs/wmx_step_log.txt",
+    "ramp": "/home/ireh21/rei/synthetic_wmx_logs/wmx_ramp_log.txt",
+    "sine_1hz": "/home/ireh21/rei/synthetic_wmx_logs/wmx_sine_1hz_log.txt",
+    "sine_2hz": "/home/ireh21/rei/synthetic_wmx_logs/wmx_sine_2hz_log.txt",
+    "sine_5hz": "/home/ireh21/rei/synthetic_wmx_logs/wmx_sine_5hz_log.txt",
+    "sine_10hz": "/home/ireh21/rei/synthetic_wmx_logs/wmx_sine_10hz_log.txt",
+    "sine_20hz": "/home/ireh21/rei/synthetic_wmx_logs/wmx_sine_20hz_log.txt"
+  },
+  "validation_log": "/home/ireh21/rei/synthetic_wmx_logs/wmx_scurve_validation_log.txt",
+  "fit_losses": {
+    "position": 0.005905841690789284,
+    "velocity": 0.016528310587465844,
+    "torque": 0.018021173860230368,
+    "total": 0.012902088172671635
+  },
+  "validation_losses": {
+    "position": 9.756142438483779e-05,
+    "velocity": 0.00011026589648135569,
+    "torque": 0.0016672963236650234,
+    "total": 0.0005591062410363763
+  }
+}

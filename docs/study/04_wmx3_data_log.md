@@ -31,102 +31,109 @@ WMX3 Data Log를 이용하여 다음 신호를 취득한다.
 
 ```
 CYCLE
-TIME
-SYSTEM_TIME
-CMDPOS0
-FBKPOS0
-FBKVEL0
-FBKTRQ0
+CommandPos-0
+FeedbackPos-0
+FeedbackVelocity-0
+FeedbackTrq-0
 ```
 ### 2.1 시간 관련 데이터
-- `CYCLE` : 데이터가 취득된 제어 주기의 순번
-- `TIME` : 로그 시작 이후의 경과 시간을 나타내는 값
-- `SYSTEM_TIME` : 시스템 기준 시간 정보이다.
+- `CYCLE` : 데이터가 취득된 제어 주기의 순번 (1ms로 설정)
 
 ### 2.2 제어 및 피드백 신호
-- `CMDPOS0` : 0번 축에 전달된 Command Position  
+- `CommandPos-0` : 0번 축에 전달된 Command Position  
   (Newton 시뮬레이션에 동일한 위치 지령을 입력하기 위한 기준 신호)
-- `FBKPOS0` : 실제 모터의 Feedback Position  
+- `FeedbackPos-0` : 실제 모터의 Feedback Position  
   (Newton의 관절 위치와 비교)
-- `FBKVEL0` : 실제 모터의 Feedback Velocity  
-  (Newton의 관절 속도와 비교)
-- `FBKTRQ0` : 실제 모터 또는 드라이브에서 제공하는 Feedback Torque  
+- `FeedbackVelocity-0` : 실제 모터의 Feedback Velocity  
+(Newton의 관절 속도와 비교)
+- `FeedbackTrq-0` : 실제 드라이브에서 제공하는 Feedback Torque  
   (Newton의 토크 응답과 비교)
 
 
 
 
 
-## 3. 단일 모터 데모기 구성 파악 (추후 완성)
-여기서 말하는 단일 모터 데모기는
-실제 WMX3에 연결되어 실험에 사용할 하나의 서보 모터 시험 장치를 의미한다.
-
-WMX3 자체의 사양과 별개로 다음 항목을 실제 데모기에서 확인해야 한다.
+## 3. 단일 모터 데모기 구성
 
 | 확인 항목       | 확인 내용                      | 현재 상태 |
-| ----------- | -------------------------- | ----- |
-| 모터 모델       | 제조사 및 모델명                  | TBD   |
-| 정격 토크       | Torque 변환에 필요한 정격 토크 [N·m] | TBD   |
-| 드라이브 모델     | EtherCAT 서보 드라이브 모델        | TBD   |
-| 엔코더 분해능     | Position 단위 변환에 필요한 분해능    | TBD   |
-| 기어비         | 모터측과 부하측 변환 비율             | TBD   |
-| 기계 구성       | 무부하 여부, 커플링 등              | TBD   |
-| 제어 축 번호     | WMX3에서 사용하는 Axis 번호        | TBD   |
-| 운전 모드       | CSP 사용 여부                  | TBD   |
-| Position 단위 | count / user unit 등        | TBD   |
-| Velocity 단위 | count/s / rpm 등            | TBD   |
-| Torque 단위   | ‰ / % / N·m 등              | TBD   |
-| 회전 방향       | 실제 장비와 Newton의 부호 규약       | TBD   |
+|---|---|---|
+| 모터 모델       | Panasonic `MSMF5AZL1S2` | 확인 |
+| 정격 토크       | Torque 변환 기준             | `0.16 N·m` |
+| 드라이브 모델   | Panasonic `MADLN05BE`       | 확인 |
+| 전원            | 드라이브 입력 전원           | `AC 220 V` |
+| 엔코더 분해능   | Position 단위 변환 기준      | `8,388,608 pulse/rev` |
+| 기어비          | 모터측과 부하측 변환 비율     | `1:1` |
+| 기계 구성       | 무부하 여부, 커플링 등        | TBD |
+| 제어 축 번호    | WMX3에서 사용하는 Axis 번호   | TBD |
+| 운전 모드       | CSP 사용 여부                | TBD |
+| Position 단위   | count / user unit 등         | `1 U = 1 deg` |
+| Velocity 단위   | count/s / rpm 등             | `deg/s` |
+| Torque 단위     | ‰ / % / N·m 등               | `%` |
+| 회전 방향       | 실제 장비와 Newton의 부호 규약 | TBD |
 
 
 
 
 
 ## 4. 단위 정합
-WMX/EtherCAT의 신호 단위와 Newton에서 사용하는 SI 단위가 다를 수 있으므로,
-피팅 전에 각 신호의 변환 기준을 확정해야 한다.
 
-WMX3 축을 rad 기준의 User Unit으로 설정하여 Newton과 맞춘다는 가정하에 작성한다.
-추가로, 단일 모터는 감속기 없는 23-bit absolute encoder 사용한다고 가정한다.
+WMX3 Position 및 Velocity는 `deg` 기준 User Unit으로 설정한다.
 
-- Encoder Resolution: 8,388,608 pulse/rev
+- Encoder Resolution: `8,388,608 pulse/rev`
 - Reduction Gear: 없음 (1:1)
-- Position Control Resolution: 1 U = 1 μrad = 0.000001 rad
+- Position Control Resolution: `1 U = 1 deg`
 
 ### 4.1 Position
-Master Gear Ratio의 분자는 1회전 펄스 수, 즉 [모터 엔코더 분해능 x 감속비] 인데, 감속기는 없기 때문에 모터 엔코터 분해능은 **8388608 pulse/rev**이다. 여기서 rev는 1회전이다.   
-모터가 1회전을 하기위해 8388608의 pulse가 필요한 것이다.  
 
-Master Gear Ratio의 분모는 [1회전 이동량 / 제어 사양] 이다.  
-1회전 이동량 = 2π rad/rev
-제어 사양 = 1 U = 1 μrad = 0.000001 rad  
-분모 = 6,283,185 U/rev
+Master Gear Ratio:
 
-따라서 WMX의 숫자는 이렇게 해석된다
+- 분자: `8,388,608 pulse/rev`
+- 분모: `360 U/rev`
+
+따라서:
+
+```text
+WMX Position = 1   → 1 deg
+WMX Position = 90  → 90 deg
+WMX Position = 360 → 360 deg = 1회전
 ```
-WMX Position = 1        → 0.000001 rad
-WMX Position = 1000     → 0.001 rad
-WMX Position = 1,000,000 → 1 rad
-WMX Position ≈ 6,283,185 → 2π rad = 1회전
+
+변환식:
+
+```text
+Newton Position [rad] = WMX Position [deg] × π / 180
 ```
-```
-Newton Position [rad] = WMX Position [U] × 0.000001
-```
-만약 1U = 1rad 라면 이때는 동일하다. 
 
 ### 4.2 Velocity
-Velocity는 Position의 시간에 따른 변화량이므로,
-Position에서 설정한 User Unit의 변환 비율을 동일하게 사용한다.
+
+Velocity는 `deg/s` 단위이며, Position과 동일한 비율로 변환한다.
+
+```text
+Newton Velocity [rad/s] = WMX Velocity [deg/s] × π / 180
 ```
-Newton Velocity [rad/s] = WMX Velocity [U/s] × 0.000001
+
+### 4.3 Torque
+
+`FeedbackTrq`는 `%` 단위이며, 모터 정격 토크는 `0.16 N·m`이다.
+
+```text
+Newton Torque [N·m]
+= FeedbackTrq × 0.01 × 0.16
+= FeedbackTrq × 0.0016
 ```
 
+### 4.4 Motor torque limits
 
+Panasonic `MSMF5AZL1S2`의 토크 제한은 서로 다른 시간 척도로 적용한다.
 
-### 4.3 Torque (추후 작성)
+- 연속 토크 제한: `0.16 N·m` (장시간 열 한계)
+- 순간 피크 토크 제한: `0.48 N·m` (즉시 출력 상한)
 
+Newton 모델은 피크 제한을 매 제어 주기의 하드 클램프로 적용하고, 연속
+제한은 지수 RMS 토크로 누적하여 적용한다. 열 시정수 `10 s`는 단순화한
+근사값이며 실제 과부하 차단 시간을 재현하려면 드라이브의 과부하 보호
+특성에 맞춰 보정해야 한다.
 
+## 5. 데이터 취득 방법
+WMX3 API의 `ClosedLoop` 기반 시험 기능으로 입력 파형을 생성하고, 축 응답 데이터를 로그로 저장해 취득하였다. step은 `StartClosedLoop()`의 `setpoint` 변경, ramp는 `opts.SetRampRate()`를 통한 setpoint 변화율 제어, sine은 `StartSineGenerator()`를 사용하였다.
 
-
-
-## 5. 

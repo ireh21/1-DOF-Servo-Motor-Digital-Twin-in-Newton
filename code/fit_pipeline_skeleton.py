@@ -77,14 +77,16 @@ if __name__ == "__main__":
     errs = []
     for J in Js:
         p = MotorParams(kp=12.0, ki=2.0, kd=0.9, integral_max=4.0,
-                        effort_limit=6.0, inertia=float(J), viscous=0.02, delay_steps=2)
+                        continuous_torque_limit=6.0, peak_torque_limit=6.0,
+                        inertia=float(J), viscous=0.02, delay_steps=2)
         errs.append(error_metric(run(p, meas), meas))
     errs = np.array(errs); Jbest = Js[errs.argmin()]
     print("sweep inertia: best J = %.4f (true≈0.03)  err=%.4f" % (Jbest, errs.min()))
 
     # --- 시각화 ---
     best = MotorParams(kp=12.0, ki=2.0, kd=0.9, integral_max=4.0,
-                       effort_limit=6.0, inertia=float(Jbest), viscous=0.02, delay_steps=2)
+                       continuous_torque_limit=6.0, peak_torque_limit=6.0,
+                       inertia=float(Jbest), viscous=0.02, delay_steps=2)
     sim = run(best, meas)
     t = np.arange(len(meas["cmd_pos"])) * DT
     fig, ax = plt.subplots(2, 1, figsize=(10, 6))

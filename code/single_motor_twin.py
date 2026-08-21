@@ -22,20 +22,31 @@ class MotorParams:
     ki: float = 0.0                 # [N m/(rad s)]
     kd: float = 0.6                 # [N m s/rad]
     integral_max: float = 5.0       # [rad s]
-    effort_limit: float = 5.0       # [N m]
+    continuous_torque_limit: float = 0.16  # [N m], MSMF5AZL1S2 continuous
+    peak_torque_limit: float = 0.48        # [N m], MSMF5AZL1S2 momentary peak
+    thermal_time_constant: float = 10.0    # [s], exponential-RMS thermal approximation
     inertia: float = 0.02           # [kg m^2]
     viscous: float = 0.01           # [N m s/rad]
     coulomb: float = 0.0            # [N m]
     delay_steps: int = 1            # [cycle]
 
     def validate(self) -> None:
-        for name in ("kp", "ki", "kd", "integral_max", "effort_limit",
-                     "inertia", "viscous", "coulomb"):
+        for name in ("kp", "ki", "kd", "integral_max",
+                     "continuous_torque_limit", "peak_torque_limit",
+                     "thermal_time_constant", "inertia", "viscous", "coulomb"):
             if not np.isfinite(getattr(self, name)):
                 raise ValueError(f"{name}은 유한한 값이어야 합니다.")
-        for name in ("integral_max", "effort_limit", "viscous", "coulomb"):
+        for name in ("integral_max", "viscous", "coulomb"):
             if getattr(self, name) < 0.0:
                 raise ValueError(f"{name}은 0 이상이어야 합니다.")
+        if self.continuous_torque_limit <= 0.0:
+            raise ValueError("continuous_torque_limit은 0보다 커야 합니다.")
+        if self.peak_torque_limit < self.continuous_torque_limit:
+            raise ValueError(
+                "peak_torque_limit은 continuous_torque_limit 이상이어야 합니다."
+            )
+        if self.thermal_time_constant <= 0.0:
+            raise ValueError("thermal_time_constant은 0보다 커야 합니다.")
         if self.inertia <= 0.0:
             raise ValueError("inertia는 0보다 커야 합니다.")
         if (isinstance(self.delay_steps, bool)
@@ -155,9 +166,14 @@ def simulate_motor(
     fb_vel = np.zeros(count, dtype=np.float64)
     fb_trq = np.zeros(count, dtype=np.float64)
     net_trq = np.zeros(count, dtype=np.float64)
+    thermal_rms_trq = np.zeros(count, dtype=np.float64)
+    available_trq = np.zeros(count, dtype=np.float64)
     errors = np.zeros(count, dtype=np.float64)
     delayed_command = np.zeros(count, dtype=np.float64)
     integral = 0.0
+    thermal_mean_square = 0.0
+    thermal_weight = float(-np.expm1(-dt / params.thermal_time_constant))
+    thermal_decay = 1.0 - thermal_weight
     joint_force = np.zeros(model.joint_dof_count, dtype=np.float32)
     viewer = _make_viewer(newton, model, viewer_record_path) if use_viewer else None
     render_stride = max(1, int(round(1.0 / (viewer_fps * dt))))
@@ -172,14 +188,27 @@ def simulate_motor(
         integral = float(np.clip(
             integral + error * dt, -params.integral_max, params.integral_max,
         ))
-        tau_motor = float(np.clip(
-            params.kp * error + params.ki * integral - params.kd * qd,
-            -params.effort_limit, params.effort_limit,
-        ))
+        tau_requested = params.kp * error + params.ki * integral - params.kd * qd
+        # Peak limit is instantaneous. The continuous limit is enforced on an
+        # exponential RMS torque, which approximates winding thermal load.
+        thermal_headroom_sq = max(
+            0.0,
+            (
+                params.continuous_torque_limit ** 2
+                - thermal_decay * thermal_mean_square
+            ) / thermal_weight,
+        )
+        torque_limit = min(params.peak_torque_limit, np.sqrt(thermal_headroom_sq))
+        tau_motor = float(np.clip(tau_requested, -torque_limit, torque_limit))
+        thermal_mean_square = (
+            thermal_decay * thermal_mean_square
+            + thermal_weight * tau_motor ** 2
+        )
         tau_net = float(
             tau_motor - params.viscous * qd - params.coulomb * np.sign(qd)
         )
         fb_trq[k], net_trq[k] = tau_motor, tau_net
+        thermal_rms_trq[k], available_trq[k] = np.sqrt(thermal_mean_square), torque_limit
         errors[k], delayed_command[k] = error, cmd
 
         joint_force[0] = tau_net
@@ -195,6 +224,8 @@ def simulate_motor(
             viewer.log_scalar("Motor/Feedback Position", float(state_0.joint_q.numpy()[0]))
             viewer.log_scalar("Motor/Feedback Velocity", float(state_0.joint_qd.numpy()[0]))
             viewer.log_scalar("Motor/Motor Torque", tau_motor)
+            viewer.log_scalar("Motor/Thermal RMS Torque", thermal_rms_trq[k])
+            viewer.log_scalar("Motor/Available Torque Limit", torque_limit)
             viewer.end_frame()
 
     result = {
@@ -205,6 +236,8 @@ def simulate_motor(
         "feedback_velocity": fb_vel,
         "feedback_torque": fb_trq,
         "net_torque": net_trq,
+        "thermal_rms_torque": thermal_rms_trq,
+        "available_torque_limit": available_trq,
         "position_error": errors,
         "viewer": viewer,
         "model": model,
@@ -227,6 +260,7 @@ def simulate_wmx_log(
     position_scale: float = 1.0,
     velocity_scale: float = 1.0,
     torque_scale: float = 1.0,
+    cycle_period_s: float | None = None,
     **simulation_kwargs,
 ):
     """WMX 로그를 읽어 시뮬레이션하고 ``(simulation, measurement)``를 반환한다."""
@@ -235,6 +269,7 @@ def simulate_wmx_log(
     measurement = load_wmx_log(
         file_path, time_unit=time_unit, position_scale=position_scale,
         velocity_scale=velocity_scale, torque_scale=torque_scale,
+        cycle_period_s=cycle_period_s,
     )
     simulation = simulate_motor(
         measurement["command_position"], measurement["dt"], params,
