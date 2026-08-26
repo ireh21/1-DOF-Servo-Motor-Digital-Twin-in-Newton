@@ -1,17 +1,17 @@
 {
   "motor_params": {
-    "kp": 0.23303367686865178,
+    "kp": 0.7634725768804524,
     "ki": 0.0,
-    "kd": 0.007724395727034785,
+    "kd": 0.02595283040713002,
     "integral_max": 5.0,
     "continuous_torque_limit": 0.16,
     "peak_torque_limit": 0.48,
     "thermal_time_constant": 10.0,
-    "inertia": 0.0002240549907040991,
-    "viscous": 1.0000091888312144e-05,
-    "coulomb": 0.003432729715064069,
+    "inertia": 8.714497967861429e-05,
+    "viscous": 5.080796891389832e-05,
+    "coulomb": 0.003931585522742968,
     "delay_steps": 0,
-    "torque_response_time_constant": 0.0
+    "torque_response_time_constant": 0.006091267967132425
   },
   "fit_logs": {
     "step": "/mnt/c/Users/kate/Downloads/csv_data/step_v.csv",
@@ -27,15 +27,15 @@
     "scurve_validation_2": "/mnt/c/Users/kate/Downloads/csv_data/SCurve2.csv"
   },
   "fit_losses": {
-    "position": 0.5509056064806864,
-    "velocity": 8.008794621472216,
-    "torque": 0.003474040429011382,
-    "total": 2.6772002061544877
+    "position": 0.423258203491414,
+    "velocity": 4.90569771004153,
+    "torque": 4.92056220836069,
+    "total": 3.1862562070050737
   },
   "validation_losses": {
-    "position": 1.690069565947519,
-    "velocity": 1.629088631831337,
-    "torque": 7.865166961739544e-05,
-    "total": 1.1793694434992448
+    "position": 1.5931549144794415,
+    "velocity": 1.633147844126485,
+    "torque": 0.09313210368874447,
+    "total": 1.1673128658125425
   }
 }

@@ -29,10 +29,6 @@ Newton 기반 단일 모터 디지털 트윈을 구성한다.
   실제 WMX3 실측 데이터를 취득하기 전에 피팅 과정을 시험할 수 있도록 가상의 WMX3 Data Log를 생성하는 코드이다.  
   Command Position, Feedback Position, Feedback Velocity, Feedback Torque 형식의 데이터를 생성한다.
 
-- [파라미터 피팅 파이프라인](code/fit_pipeline_skeleton.py)  
-  WMX3 로그를 불러와 Newton 트윈의 출력과 비교하고, 오차를 계산하여 모터 파라미터를 조정하기 위한 피팅 코드이다.  
-  현재는 예시로 관성 값을 변화시키며 오차가 가장 작은 값을 찾는 과정이 구현되어 있다.
-
 - [단일 모터 디지털 트윈](code/single_motor_twin.py)  
   WMX3의 Command Position을 입력받아 단일 서보 모터의 Feedback Position, Velocity, Torque를 모사하는 Newton 기반 1-DOF 디지털 트윈 코드이다.  
   PID 제어, 지령 지연, 토크 제한, 관성 및 마찰 등의 파라미터와 Step/Sine/Chirp/S-curve Motion Profile, Viser Viewer가 포함되어 있다.

@@ -29,11 +29,13 @@ class MotorParams:
     viscous: float = 0.01           # [N m s/rad]
     coulomb: float = 0.0            # [N m]
     delay_steps: int = 1            # [cycle]
+    torque_response_time_constant: float = 0.0  # [s], 0이면 토크 지연 비활성화
 
     def validate(self) -> None:
         for name in ("kp", "ki", "kd", "integral_max",
                      "continuous_torque_limit", "peak_torque_limit",
-                     "thermal_time_constant", "inertia", "viscous", "coulomb"):
+                     "thermal_time_constant", "inertia", "viscous", "coulomb",
+                     "torque_response_time_constant"):
             if not np.isfinite(getattr(self, name)):
                 raise ValueError(f"{name}은 유한한 값이어야 합니다.")
         for name in ("integral_max", "viscous", "coulomb"):
@@ -47,6 +49,8 @@ class MotorParams:
             )
         if self.thermal_time_constant <= 0.0:
             raise ValueError("thermal_time_constant은 0보다 커야 합니다.")
+        if self.torque_response_time_constant < 0.0:
+            raise ValueError("torque_response_time_constant은 0 이상이어야 합니다.")
         if self.inertia <= 0.0:
             raise ValueError("inertia는 0보다 커야 합니다.")
         if (isinstance(self.delay_steps, bool)
@@ -171,6 +175,7 @@ def simulate_motor(
     errors = np.zeros(count, dtype=np.float64)
     delayed_command = np.zeros(count, dtype=np.float64)
     integral = 0.0
+    motor_torque = 0.0
     thermal_mean_square = 0.0
     thermal_weight = float(-np.expm1(-dt / params.thermal_time_constant))
     thermal_decay = 1.0 - thermal_weight
@@ -188,7 +193,11 @@ def simulate_motor(
         integral = float(np.clip(
             integral + error * dt, -params.integral_max, params.integral_max,
         ))
-        tau_requested = params.kp * error + params.ki * integral - params.kd * qd
+        tau_requested = (
+            params.kp * error
+            + params.ki * integral
+            - params.kd * qd
+        )
         # Peak limit is instantaneous. The continuous limit is enforced on an
         # exponential RMS torque, which approximates winding thermal load.
         thermal_headroom_sq = max(
@@ -199,14 +208,24 @@ def simulate_motor(
             ) / thermal_weight,
         )
         torque_limit = min(params.peak_torque_limit, np.sqrt(thermal_headroom_sq))
-        tau_motor = float(np.clip(tau_requested, -torque_limit, torque_limit))
+        tau_target = float(np.clip(tau_requested, -torque_limit, torque_limit))
+        if params.torque_response_time_constant > 0.0:
+            torque_weight = float(-np.expm1(-dt / params.torque_response_time_constant))
+            motor_torque += torque_weight * (tau_target - motor_torque)
+            tau_motor = motor_torque
+        else:
+            tau_motor = tau_target
+            motor_torque = tau_target
         thermal_mean_square = (
             thermal_decay * thermal_mean_square
             + thermal_weight * tau_motor ** 2
         )
-        tau_net = float(
-            tau_motor - params.viscous * qd - params.coulomb * np.sign(qd)
-        )
+        if abs(qd) < 1.0e-4:
+            friction_direction = np.sign(tau_motor)
+            friction = min(abs(tau_motor), params.coulomb) * friction_direction
+        else:
+            friction = params.coulomb * np.sign(qd)
+        tau_net = float(tau_motor - params.viscous * qd - friction)
         fb_trq[k], net_trq[k] = tau_motor, tau_net
         thermal_rms_trq[k], available_trq[k] = np.sqrt(thermal_mean_square), torque_limit
         errors[k], delayed_command[k] = error, cmd

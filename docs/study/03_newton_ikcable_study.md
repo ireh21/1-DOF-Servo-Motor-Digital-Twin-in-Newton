@@ -1,4 +1,16 @@
-# Newton_ikcable_notebook
+# Newton IKCable Baseline Study
+
+## 1. 문서의 목적
+
+이 문서는 `franka_cube` baseline의 `01_newton_ikcable_notebook.ipynb`를 읽고,
+Newton의 기본 실행 흐름과 핵심 개념을 프로젝트 관점에서 정리한 학습 문서이다.
+
+목적은 IK 및 cable 예제 전체를 그대로 구현하는 것이 아니라,
+`ModelBuilder -> Model -> State / Control -> Solver` 흐름과 Newton의 주요 구성 요소를 이해하는 데 있다.
+
+현재 프로젝트의 직접 구현 전략은 별도 문서에서 다루고,
+이 문서는 baseline 노트북을 이해하기 위한 `study` 문서로 유지한다.
+
 franka_cube 파일을 압축을 풀면 다음과 같이 나온다
 ```
 franka_cube/
@@ -11,15 +23,16 @@ franka_cube/
 └── source/franka_cube/      # Isaac Lab 확장 패키지 소스
 ```
 
-현재는 GPU (NVDIA CUDA GPU)를 사용하지 않기에 02_isaaclab_newton...ipynb 해당 파일보다는 `01_newton_ikcable_notebook.ipynb`을 실행해본다. (2026/08/07)
+현재는 GPU(NVIDIA CUDA GPU)를 사용하지 않기에
+`02_isaaclab_newton...ipynb`보다는 `01_newton_ikcable_notebook.ipynb`를 우선 실행해본다. (2026/08/07)
 
-## 일단 적어나가는 개념 (노트에 없는 내용 위주)
+## 2. 노트북 이해를 위해 따로 보강한 개념
 
-### • 1.1 CUDA
+### 2.1 CUDA
 NVIDIA 그래픽 카드인 GPU를 이용해 계산을 빠르게 수행하는 기술
-Newton과 갗은 물리 시뮬레이션처럼 같은 계산을 엄청 많이 반복하는 작업에 능함
+Newton과 같은 물리 시뮬레이션처럼 같은 계산을 엄청 많이 반복하는 작업에 능함
 
-### • 1.2 URDF
+### 2.2 URDF
 Unified Robot Description Format의 약자. 로봇의 몸 구조를 적어놓은 설계 설명서 파일이다.  
 
 URDF의 파일 안에는 로봇에 대한 다음과 같은 정보가 들어간다
@@ -41,7 +54,7 @@ URDF에서 가장 중요한 개념은 link와 joint 이다.
 - Link : 로봇의 움직이지 않는 하나의 단단한 부품 (로봇의 바닥, 그리퍼)
 - joint : 두 링크를 연결하면서 움직임을 허용하는 부분 (회전 관절, 직선 이동 관절)
 
-### • 1.3 XPBD (중요?)
+### 2.3 XPBD
 Extended Position-Based Dynamics의 약자. 확장 위치 기반 동역학.  
 
 일반적인 물리 시뮬레이션이 힘과 토크로 가속도를 계산한다면,  
@@ -73,7 +86,7 @@ XPBD constraints
 ```
 
 
-### • 1.4 역기구학(IK)
+### 2.4 역기구학(IK)
 로봇팔의 끝부분 (End Effector)을 "여기로 보내고 싶다"고 했을 때 각 관절을 몇 도씩 움직여야 하는지 계산하는 것. 
 ```
 목표:
@@ -91,7 +104,7 @@ XPBD constraints
 즉, 관절각 → 로봇 손 위치 (순기구학, FK) /  로봇 손 목표 위피 → 관절각 (역기구학, IK)
 
 
-## 노트에 적힌 글 정리...?
+## 3. 노트북 markdown 기반 핵심 흐름 요약
 
 - 핵심개념 : ModelBuilder → Model → State / Control → Solver  
 └ **ModelBuiler** : USD, MJCF, URDF 형식의 에셋 불러오고, 강체·형상·관절과 각각의 속성을   조립하기 위한 모델 생성 API  
@@ -102,13 +115,13 @@ XPBD constraints
 └ **Solver** : 물리 법칙을 적분, 각종 제약 조건을 처리해 *시뮬을 다음 시점으로 진행*  
 
 - 각 시뮬 substep *(한 번의 큰 시뮬 시간 간격을 더 잘게 나눈 계산 단위)* 에서 `Solver`는 `Model, State, Control, Contacts, dt (시간 간격)를 입력`으로 받아 `다음 시점의 State`를 계산. 
-![Newton solver.step() 입력·출력 데이터 흐름](../images/concept2.png)
+![Newton solver.step() 입력·출력 데이터 흐름](../../images/concept2.png)
  
 
 
-- 수치 계산에는 Wrap, 시뮬레이션에는 Newton을 사용  
+- 수치 계산에는 Warp, 시뮬레이션에는 Newton을 사용  
 └ **Warp** : CUDA 코드를 직접 작성하지 않아도 고성능 시뮬 및 기하 연산 코드를 작성 가능하도록 NVIDIA가 만든 Ptyhon 프레임워크. Warp가 CPU에 최족화된 네이티브 코드로 변환해주어, Python의 편리한 개발 방식을 유지하면서도, 물리 시뮬·로보틱스·그래픽스 작업에서 저수준 언어에 가까운 높은 성능을 얻을 수 있음.
-![Warp CUDA 커널 실행 흐름](../images/concept1.png)
+![Warp CUDA 커널 실행 흐름](../../images/concept1.png)
 
 - **finalize()** : 다음의 함수를 수행하면 ModelBuilder가 연산 장치에서 바로 사용 가능한 Model로 변환된다. 
 
@@ -117,7 +130,7 @@ XPBD constraints
 GPU에서 작은 커널을 여러 번 반복 실행 시, 실제 계산 시간보다 각 커널을 실행하도록 요청하는 오버헤드가 전체 실행 시간에서 큰 비중 차지.  
 이러한 오버헤드 줄이기 위해 **CUDA 그래프 캡쳐**를 Warp가 지원.  
 simulate() 반복문을 한 번 그래프로 캡쳐한 뒤, 캡쳐된 그래프를 반복해 재사용 하는 방식.
-![성능 최적화:CUDA 그래프캡쳐](../images/CUDA_graph_capture.png)  
+![성능 최적화:CUDA 그래프캡쳐](../../images/CUDA_graph_capture.png)  
 해당 그림의 위의 방법은 CUDA 그래프를 사용하지 않는 일반적인 실행 방식이다. CPU가 GPU 커널 A부터 E까지 각각 따로 실행 요청을 보내고 그에 따른 지연시간(Launch Latency)가 발생하는 것을 확인.  
 아래의 방법은 CUDA 그래프를 사용하는 방식이다. 처음에 A → B → C → D → E 작업 순서를 하나의 그래프로 구성한 다음, 그래프 전체를 한 번만 실행 요청한다. CPU의 반복 호출 오버헤드를 줄이고, time을 save한 것을 확인 가능. 
 
@@ -126,7 +139,7 @@ simulate() 반복문을 한 번 그래프로 캡쳐한 뒤, 캡쳐된 그래프�
 - **Newton의 역기구학(IK)** `Inverse Kinematics (IK) in Newton`  
 └ Newton의 IK 모듈인 `newton.ik`는 Warp 기반 구축된 **배치형 역기구학 시스템**이다.  
 └ Newton이 단순히 물리 시뮬레이션만 하는 것이 아닌 IK를 계산하기 위한 자체 모듈도 제공한다는 뜻.
-![Newton IKSolver](../images/IK_components.png)
+![Newton IKSolver](../../images/IK_components.png)
  **Obectives** : IK가 “무엇을 만족해야 하는가”  
  └ Position → 로봇 손을 목표 위치로 보내기  
  └ Rotation → 로봇 손의 방향/자세 맞추기  
@@ -139,16 +152,16 @@ simulate() 반복문을 한 번 그래프로 캡쳐한 뒤, 캡쳐된 그래프�
 
 
 
-## 노트에 적힌 셀 정리...?
+## 4. 셀별 실행 요약
 
-### 0) setup
+### 4.1 Setup
  1
 : Newton이 MuJoCo 솔버를 사용할 수 있도록 MuJoCo 관련 라이브러리를 불러와 내부에 저장해 두는 준비 작업
 
  2 
 : CPU 사용 여부 선택, ViewerViser 생성 도구, Mermaid 흐름도(다이어그램) 출력 도구, 노트북용 진행률 표시줄 생성
 
-###  1) ModelBuilder -> Model
+### 4.2 ModelBuilder -> Model
 
  3, 4
 : 개념에 해당하는 사진 출력
@@ -168,11 +181,11 @@ contacts 1개 -> 각 substep마다 충돌 감지 pipeline이 계산한 접촉 �
 
 Contacts는 현재 상태인 State, 제어 입력인 Control, 시간 간격인 dt와 함께 solver.step(...)에 전달.
 ```
-![Model 사진](../images/1_initial.png)
+![Model 사진](../../images/1_initial.png)
 
 ---
 
-### 2) Solver and Simulation Loop
+### 4.3 Solver and Simulation Loop
 7 
 : XPBD의 solver 설정. 화면의 1프레임(1/60초)을 8개의 작은 substep으로 나누어 충돌 계산과 물리 업데이트를 반복하는 시뮬.
 
@@ -190,12 +203,12 @@ Contacts는 현재 상태인 State, 제어 입력인 Control, 시간 간격인 d
 
  8 
 : 시뮬레이션을 180프레임 동안 실행. 매 프레임의 물체 상태를 ViewerViser에 기록한 뒤, 마지막에 3초 분량의 재생화면을 노트북에 표시.  
-![180프레임의 사진](../images/1_last.png)
+![180프레임의 사진](../../images/1_last.png)
 
 ---
 
-### 3) Performance : CUDA Graph Capture
-현재 본인이 GPU의 환경이 아닌 CPU-only 환경에서 작성하기 때문에 관점을 2개로 나누어 작성한다. 
+### 4.4 Performance : CUDA Graph Capture
+현재는 GPU 환경이 아닌 CPU-only 환경에서 작성하기 때문에 관점을 2개로 나누어 작성한다. 
 
 | 셀 | GPU환경 | CPU-only환경 |
 |---|---|---|
@@ -207,7 +220,7 @@ CUDA Graph Capture 방식에 대하여 일반 실행과 Graph Capture 실행의 
 
 ---
 
-### 4) Load Robot
+### 4.5 Load Robot
 
 URDF 파일에서 Franka 로봇팔을 불러온다. (Model 생성)  
 로봇의 운동학적 상태(kinematic state)를 초기화하고 *(각 관절의 초기값, joint_q를 기준으로 각 링크의 위치, 자세 계산해 로봇이 초기 자세를 가지게 된다. 여기서 초기 자세는 state_0에 반영된다)*,   
@@ -225,7 +238,7 @@ pip install pycollada
 다시 jupyter lab에 연결해서 맨 위의 셀부터 다시 실행하면 오류가 해결된다. 
 ```
 
-![Franka Robot](../images/4_franka_robot.png)
+![Franka Robot](../../images/4_franka_robot.png)
 
 
 <실험>  
@@ -236,35 +249,35 @@ joint_target_kd -> 움직이는 속도를 억제해서 흔들림을 줄이는 �
 사진은 모두 마지막 프레임을 기준으로 한다
 
 <1번 사진>  
-![1번 사진](../images/4_EX_1.png)
+![1번 사진](../../images/4_EX_1.png)
 
 <2번 사진>  
-![2번 사진](../images/4_EX_2.png)
+![2번 사진](../../images/4_EX_2.png)
 
 <3번 사진>  
-![3번 사진](../images/4_EX_3.png)
+![3번 사진](../../images/4_EX_3.png)
 
 <4번 사진>  
-![4번 사진](../images/4_EX_4.png)
+![4번 사진](../../images/4_EX_4.png)
 > 4번의 경우 물리엔진에 따라 로봇팔이 충분히 쓰러질 수 있도록 더 길에 5초로 시뮬레이션 시간을 늘림
 
 ---
 
-### 5) Joint Targets with Control.joint_target_pos
+### 4.6 Joint Targets with Control.joint_target_pos
 
 대부분의 로봇 제어기는 target position(목표 관절 위치)와 함께 PD gain을 사용해 관절을 구동한다.  
 
 Franka 로봇에 PD 기반 joint target 제어를 설정하고, `Control.joint_target_pos`를 통해 특정 관절에 사인파 형태의 목표 위치를 입력하여 MuJoCo Solver로 3초간 움직임을 시뮬레이션한다.
 
-![Franka Robot Sin Move](../images/4_franka_robot_sinmv.png)
+![Franka Robot Sin Move](../../images/4_franka_robot_sinmv.png)
 
 ---
 
-### 6) IK Path Following
+### 4.7 IK Path Following
 
 모든 IK 계산에서는 관절 제한(joint limits)을 계속 활성화한다. 또한 각 IK 구성 요소가 코드의 어느 부분에서 사용되었는지 쉽게 확인할 수 있도록 작성되어 있음. 
 
-#### Step 1 : 하나의 목표에 대한 위치 전용 IK
+#### Step 1: 하나의 목표에 대한 위치 전용 IK
 Franka의 End Effector를 현재 위치에서 [0, +0.52, +0.04]만큼 이동한 고정된 엔드이펙터 위치 목표를 설정한다.   
 목표 위치로 보내기 위해 Newton IK를 풀고, 계산된 관절각을 `Control.joint_target_pos`에 넣어 MuJoCo로 120프레임 동안 실제 움직임을 시뮬레이션한다. 
 
@@ -299,7 +312,7 @@ State 업데이트
 ViewerViser
 End Effector의 움직임과 이동 궤적을 기록·표시
 ```
-![IK_step1](../images/IK_step1.png)
+![IK_step1](../../images/IK_step1.png)
 
 #### Step 2: Preview the Rectangle Path (No IK Yet)
 Franka의 End Effector 현재 위치를 기준으로 앞쪽에 작은 사각형 경로를 하나 정의하고, 실제 IK나 로봇 움직임 계산은 하지 않은 채 ViewerViser에 그 사각형 경로만 미리 표시하는 코드
@@ -324,7 +337,7 @@ End Effector 현재 위치 확인
 ViewerViser에
 Franka 초기 자세 + 사각형 경로 표시
 ```
-![IK_step2](../images/IK_step2.png)
+![IK_step2](../../images/IK_step2.png)
 
 
 #### Step 3: Full Rectangle IK Tracking
@@ -364,13 +377,13 @@ ViewerViser에 표시
 • 하늘색: 실제 End Effector 이동 궤적
 ```
 
-![step3](../images/IK_step3.png)
+![step3](../../images/IK_step3.png)
 
 
-## Coupled Manipulation : Franka Cable Pick-and-Place
-> 해당 내용은 원래 6) IK Path Following의 다음 내용이지만 deformable body에 대해 다루기 때문에 중요하다고 생각해 따로 뺌. 
+## 5. Coupled Manipulation / Cable / IK 상세 해설
 
-6)과 동일히 IK 패턴을 사용하지만, **변형 가능한 케이블을 집어서 목표 위치로 옮기는 작업** (1개 이상의 Solver가 필요)에 대해 다룬다.
+앞선 IK 패턴을 사용하지만, **변형 가능한 케이블을 집어서 목표 위치로 옮기는 작업**과
+여러 solver를 결합하는 방식을 함께 다룬다.
 
 ### Why Coupling?
 Franka 로봇팔 → Rigid Body  | 변형 가능한 케이블 → Deformable Body  
@@ -511,7 +524,7 @@ Coupled Solver 준비 완료
 ### Preview the Coupled Scene
 IK와 실제 작업 동작 추가 전, Franka 로봇팔과 cable이 배치된 초기 장면을 렌더링해 확인하는 과정
 
-![preview Franka_cable](../images/7_Coupled_preview.png)
+![preview Franka_cable](../../images/7_Coupled_preview.png)
 
 
 ### Build the Franka IK System
@@ -583,56 +596,7 @@ ViewerViser에 기록
 ↓
 다음 프레임 반복
 ```
-![7_1](../images/7_1.png)
-![7_2](../images/7_2.png)
-![7_3](../images/7_3.png)
-![7_4](../images/7_4.png)
-
-
-
-## 단일 무부하 서보 모터는 어떻게 만들어야할까...에 대해
-
-`ModelBuilder`로 회전축 하나를 만들고, 그 축의 물리 파라미터와 actuator 파라미터를 실제 WMX 응답에 맞게 조정하는 것
-
-```
-WMX Command Position
-        ↓
-   지령 지연
- delay_steps
-        ↓
-서보 드라이브 제어기 근사
- PD 또는 PID
- Kp / Ki / Kd
-        ↓
-토크 제한
-effort_limit / clamping
-        ↓
-1-DOF Motor Plant
-┌─────────────────────┐
-│ 관성 J              │
-│ 점성마찰 b          │
-│ 쿨롱마찰 τc         │
-└─────────────────────┘
-        ↓
-q, q̇, torque
-        ↓
-WMX Feedback와 비교
-```
-```
-<Parameter 후보>
-[Drive / Controller]
-Kp
-Ki
-Kd
-integral_max
-delay_steps
-
-[Motor / Mechanical Plant]
-J  : 유효 관성
-b  : 점성 마찰
-τc : 쿨롱 마찰
-
-[Limits]
-τmax : 토크 제한
-필요하면 속도 제한
-```
+![7_1](../../images/7_1.png)
+![7_2](../../images/7_2.png)
+![7_3](../../images/7_3.png)
+![7_4](../../images/7_4.png)
