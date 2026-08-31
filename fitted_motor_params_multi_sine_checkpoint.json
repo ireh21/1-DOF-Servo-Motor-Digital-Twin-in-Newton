@@ -1,17 +1,18 @@
 {
+  "stage": "after_multi_sine",
   "motor_params": {
-    "kp": 1.7834420458981466,
+    "kp": 1.4290473146025706,
     "ki": 0.0,
-    "kd": 0.03489275095941144,
+    "kd": 0.0427577963253064,
     "integral_max": 5.0,
     "continuous_torque_limit": 0.16,
     "peak_torque_limit": 0.48,
     "thermal_time_constant": 10.0,
-    "inertia": 8.092287352071479e-06,
-    "viscous": 0.00016529462201840913,
-    "coulomb": 0.0039704990270451514,
-    "delay_steps": 6,
-    "torque_response_time_constant": 0.0024624683815092636
+    "inertia": 2.1078659069742927e-05,
+    "viscous": 1e-05,
+    "coulomb": 0.004161931981055078,
+    "delay_steps": 0,
+    "torque_response_time_constant": 0.0021890134334808455
   },
   "fit_logs": {
     "step": "/mnt/c/Users/kate/Downloads/csv_data/step_v.csv",
@@ -26,16 +27,11 @@
     "scurve_validation_1": "/mnt/c/Users/kate/Downloads/csv_data/SCurve.csv",
     "scurve_validation_2": "/mnt/c/Users/kate/Downloads/csv_data/SCurve2.csv"
   },
-  "fit_losses": {
-    "position": 0.24199713976088288,
-    "velocity": 4.627082601076721,
-    "torque": 1.2880112866322064,
-    "total": 1.9131047115107784
+  "losses": {
+    "position": 0.3441929239195097,
+    "velocity": 3.8592585933993755,
+    "torque": 0.42779715516757966,
+    "total": 1.7154345424690125
   },
-  "validation_losses": {
-    "position": 0.06557532023879639,
-    "velocity": 1.6363381563109956,
-    "torque": 0.17008862073799458,
-    "total": 0.5541975267387873
-  }
+  "sim_device": "cpu"
 }

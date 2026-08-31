@@ -141,18 +141,22 @@ CoE에서 데이터를 교환하는 방식은 크게 PDO와 SDO로 구분할 수
 |---|---|---|
 | PDO | 통신 주기마다 빠르게 교환하는 데이터 | 목표 위치, 실제 위치, 실제 속도, 실제 토크 |
 | SDO | 설정 및 진단을 위해 필요할 때 접근하는 데이터 | 모터 파라미터, 제한값, 운전 모드 설정 |
+  
+SDO는 유저가 호출해야 사용이 되는 전송 방식이다.  
+ (PDO처럼 매 순간 데이터를 교환하는 방식이 아닌 Master가 원하는 상황에 읽고 쓸 수 있는 프로토콜을 지칭한다. )
 
-PDO는 실시간 모터 제어에 사용하고,
+PDO는 실시간 모터 제어에 사용하고,  
 SDO는 주로 초기 설정과 파라미터 확인에 사용한다.
 
 ### 3.2 RxPDO와 TxPDO
 
+PDO는 Receive, Transfer로 나뉜다. 전자는 Slave가 받는 데이터. 후자는 Slave가 주는 데이터이다.
 RxPDO와 TxPDO의 방향은 서보 드라이브를 기준으로 구분한다.
 
 | 구분 | 방향 | 주요 데이터 |
 |---|---|---|
-| RxPDO | WMX3 → 서보 드라이브 | Controlword, 운전 모드, Target Position |
-| TxPDO | 서보 드라이브 → WMX3 | Statusword, Actual Position, Actual Velocity, Actual Torque |
+| RxPDO | WMX3(Master) → 서보 드라이브(Slave) | Controlword, 운전 모드, Target Position |
+| TxPDO | 서보 드라이브(Slave) → WMX3(Master) | Statusword, Actual Position, Actual Velocity, Actual Torque |
 
 
 ## 4. CiA 402
@@ -229,6 +233,8 @@ INIT
 
 각 상태 전환은 자동으로 이루어지는 것이 아니라,
 WMX3 마스터의 전환 요청과 서보 드라이브의 설정·통신 조건 확인을 거쳐 수행된다.
+
+Boot strap 단계가 추가적으로 존재하는데, 이는 SDO 호출 할 때, 펌웨어 업데이트 시의 상태이다. 
 
 #### 4.2.2 CiA 402 드라이브 상태
 
