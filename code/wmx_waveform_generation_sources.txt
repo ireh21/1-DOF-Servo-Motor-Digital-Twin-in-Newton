@@ -1,0 +1,457 @@
+S-Curve는 wmx3/sample/1_BasicMotion/03_MotorControl.cpp
+이외에는 wmx3/sample/2_DerivedMotion/08_CyclicBufferMotion.cpp
+의 환경에서 구현하였다
+
+step 파형 (중간 부분만 작성됨)
+
+/*---------------------------------------------------------------------------*/
+/* Function    : _tmain                                                      */
+/* Description : Main Function.                                              */
+/*---------------------------------------------------------------------------*/
+int _tmain(int argc, _TCHAR* argv[])
+{
+    const int axis = 0;
+    const double stepSetpoint = 3000.0;
+    const unsigned int measurementTime = 3000; // ms
+
+    printf("Program Start\n");
+    Sleep(1000);
+
+    Initialize();  
+
+
+    // config 쪽으로 해서 파라미터를 추가해야 0이 아닌 값이 나오고 pos가 움직이나?
+    Config::ClosedLoopParam originalParam;
+    int iRet = Wmx3Lib_cm.config->GetClosedLoopParam(axis, &originalParam); 
+    if (iRet != ErrorCode::None)
+    {
+        Finalize();
+        return iRet;
+    }
+
+    Config::ClosedLoopParam openLoopParam = originalParam;
+    openLoopParam.feedback.offset = 0.0;
+    openLoopParam.pid.integralGain = 0.0;
+    openLoopParam.pid.derivativeGain = 0.0;
+    openLoopParam.pid.proportionalGain = 1.0;
+    openLoopParam.feedback.dataSourceType = Config::DataSourceType::None;
+
+
+    iRet = Wmx3Lib_cm.config->SetClosedLoopParam(axis, &openLoopParam);
+    if (iRet != ErrorCode::None)
+    {
+        Finalize();
+        return iRet;
+    }
+    // 여기까지가 conmfig로 파라미터 설정하는 블록
+
+    printf("Position step: axis=%d, setpoint=%.3f\n", axis, stepSetpoint);
+
+    // 그냥 옵션?
+    ClosedLoop::ClosedLoopOptions opts;
+    opts.SetProportionalGain(1.0)
+        .SetIntegralGain(0.0)
+        .SetDerivativeGain(0.0)
+        .SetRampRate(0.0);
+
+    ClosedLoop::ClosedLoopCommand command(axis, stepSetpoint);
+    command.SetOptions(opts);  //옵션 적용
+    iRet = StartClosedLoopAt(command, stepSetpoint, measurementTime);
+
+    if (iRet == ErrorCode::None)
+    {
+        iRet = StartClosedLoopAt(command, -3000.0, measurementTime);
+    }
+
+    if (iRet == ErrorCode::None)
+    {
+        iRet = StartClosedLoopAt(command, 0.0, 1000);
+    }
+
+    if (iRet == ErrorCode::None)
+    {
+        iRet = Wmx3Lib_cm.closedLoop->StopClosedLoop(axis);
+    }
+
+    int restoreRet = Wmx3Lib_cm.config->SetClosedLoopParam(axis, &originalParam);
+    if (restoreRet != ErrorCode::None && iRet == ErrorCode::None)
+    {
+        iRet = restoreRet;
+    }
+
+    Finalize();
+
+    printf("Program End\n");
+    Sleep(3000);
+    return iRet;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Function    : StartClosedLoopAt                                           */
+/* Description : Set a target and keep the closed-loop command active.       */
+/*---------------------------------------------------------------------------*/
+int StartClosedLoopAt(ClosedLoop::ClosedLoopCommand& command,
+    double setpoint, unsigned int waitMilliseconds)
+{
+    command.setpoint = setpoint;
+    int iRet = Wmx3Lib_cm.closedLoop->StartClosedLoop(&command);
+    if (iRet == ErrorCode::None)
+    {
+        Sleep(waitMilliseconds);
+    }
+
+    return iRet;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Function    : Initialize                                                  */
+/* Description : Device creation ~ To servo-on completion.                   */
+/*---------------------------------------------------------------------------*/
+
+
+ramp 파형 (전체)
+
+/*****************************************************************************/
+/* FILE        : CyclicBufferMotion.cpp                                      */
+/* DESCRIPTION : Generate multi-speed ramp waveforms with closed-loop control. */
+/*****************************************************************************/
+#include "WMX3Api.h"
+#include "CoreMotionApi.h"
+#include "WMX3Funcs.h"
+#include <cmath>
+
+using namespace wmx3Api;
+using namespace std;
+
+WMX3Api          Wmx3Lib;
+EngineStatus     EnStatus;
+CoreMotionStatus CmStatus;
+CoreMotion       Wmx3Lib_cm(&Wmx3Lib);
+
+int Initialize();
+void Finalize();
+int RunMultiSpeedRamp(int axis);
+
+// Set this to the axis scaling configured in WMX3.
+const double userUnitsPerDegree = 1.0;
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+    // This assumes the axis position unit is configured as 1 user unit = 1 deg.
+    const int axis = 0;
+    printf("Program Start\n");
+    Sleep(1000);
+
+    int iRet = Initialize();
+    if (iRet == ErrorCode::None)
+    {
+        iRet = RunMultiSpeedRamp(axis);
+    }
+
+    printf("Finalizing...\n");
+    fflush(stdout);
+    Finalize();
+    printf("Program End (ret=0x%08X)\n", iRet);
+    fflush(stdout);
+    Sleep(3000);
+    return iRet;
+}
+
+// Fifth-order S-curve: zero slope and zero acceleration at both ends.
+double SmoothStep5(double x)
+{
+    if (x <= 0.0)
+    {
+        return 0.0;
+    }
+    if (x >= 1.0)
+    {
+        return 1.0;
+    }
+    return x * x * x * (10.0 + x * (-15.0 + 6.0 * x));
+}
+
+int RunMultiSpeedRamp(int axis)
+{
+    // Match the original ramp test's +/-3000 setpoint.
+    const double stepSetpointDegrees = 1080.0;
+    const unsigned int initialHoldMilliseconds = 4000;
+    const unsigned int measurementMilliseconds = 2000;
+    const unsigned int commandTimeoutMilliseconds = 30000;
+    const double rampRatesDegreesPerSecond[] = {
+        60.0, 120.0, 240.0, 240.0, 240.0
+    };
+    const char* rampNames[] = {
+        "60 deg/s", "120 deg/s", "240 deg/s slow", "240 deg/s medium",
+        "240 deg/s fast"
+    };
+
+    Config::ClosedLoopParam originalParam;
+    int iRet = Wmx3Lib_cm.config->GetClosedLoopParam(axis, &originalParam);
+    if (iRet != ErrorCode::None)
+    {
+        return iRet;
+    }
+
+    Config::ClosedLoopParam rampParam = originalParam;
+    rampParam.feedback.offset = 0.0;
+    rampParam.pid.integralGain = 0.0;
+    rampParam.pid.derivativeGain = 0.0;
+    rampParam.pid.proportionalGain = 1.0;
+    rampParam.feedback.dataSourceType = Config::DataSourceType::None;
+    iRet = Wmx3Lib_cm.config->SetClosedLoopParam(axis, &rampParam);
+    if (iRet != ErrorCode::None)
+    {
+        return iRet;
+    }
+
+    auto waitForCommand = [&](double target)
+    {
+        for (unsigned int elapsed = 0;
+            elapsed < commandTimeoutMilliseconds; elapsed += 10)
+        {
+            if (Wmx3Lib_cm.GetStatus(&CmStatus) != ErrorCode::None)
+            {
+                return false;
+            }
+            if (fabs(CmStatus.axesStatus[axis].posCmd - target) <= 1.0)
+            {
+                return true;
+            }
+            Sleep(10);
+        }
+        printf("Ramp timeout: target=%.3f, posCmd=%.3f\n", target,
+            CmStatus.axesStatus[axis].posCmd);
+        return false;
+    };
+
+    auto runRamp = [&](double rampRateDegreesPerSecond, double targetDegrees)
+    {
+        ClosedLoop::ClosedLoopOptions options;
+        options.SetProportionalGain(1.0)
+            .SetIntegralGain(0.0)
+            .SetDerivativeGain(0.0)
+            .SetRampRate(rampRateDegreesPerSecond * userUnitsPerDegree);
+        ClosedLoop::ClosedLoopCommand command(
+            axis, targetDegrees * userUnitsPerDegree);
+        command.SetOptions(options);
+        int result = Wmx3Lib_cm.closedLoop->StartClosedLoop(&command);
+        if (result == ErrorCode::None && !waitForCommand(
+            targetDegrees * userUnitsPerDegree))
+        {
+            result = ErrorCode::WaitForDeviceEventTimeout;
+        }
+        return result;
+    };
+
+    Sleep(initialHoldMilliseconds);
+    for (unsigned int i = 0; i < sizeof(rampRatesDegreesPerSecond) /
+        sizeof(rampRatesDegreesPerSecond[0]); ++i)
+    {
+        printf("Ramp test: %s\n", rampNames[i]);
+        iRet = runRamp(rampRatesDegreesPerSecond[i], stepSetpointDegrees);
+        if (iRet == ErrorCode::None)
+        {
+            Sleep(measurementMilliseconds);
+            iRet = runRamp(rampRatesDegreesPerSecond[i], -stepSetpointDegrees);
+        }
+        if (iRet == ErrorCode::None)
+        {
+            Sleep(measurementMilliseconds);
+            iRet = runRamp(rampRatesDegreesPerSecond[i], 0.0);
+        }
+        if (iRet != ErrorCode::None)
+        {
+            break;
+        }
+        Sleep(measurementMilliseconds);
+    }
+    const int stopRet = Wmx3Lib_cm.closedLoop->StopClosedLoop(axis);
+    if (iRet == ErrorCode::None && stopRet != ErrorCode::None)
+    {
+        iRet = stopRet;
+    }
+    const int restoreRet =
+        Wmx3Lib_cm.config->SetClosedLoopParam(axis, &originalParam);
+    return iRet == ErrorCode::None ? restoreRet : iRet;
+}
+
+int Initialize()
+{
+    int iRet = Wmx3Lib.CreateDevice(WMX3_DEVICE_ROOT,
+        DeviceType::DeviceTypeNormal, INFINITE);
+    if (iRet != ErrorCode::None)
+    {
+        return iRet;
+    }
+
+    Wmx3Lib.SetDeviceName("CyclicBufferMotion");
+
+    for (unsigned int i = 0; i < 100; ++i)
+    {
+        iRet = Wmx3Lib.StartCommunication(INFINITE);
+        if (iRet == ErrorCode::None)
+        {
+            Wmx3Lib.GetEngineStatus(&EnStatus);
+            if (EnStatus.state == EngineState::Communicating)
+            {
+                break;
+            }
+        }
+    }
+    if (EnStatus.state != EngineState::Communicating)
+    {
+        return iRet;
+    }
+
+    iRet = Wmx3Lib_cm.axisControl->SetServoOn(0, 1);
+    if (iRet != ErrorCode::None)
+    {
+        return iRet;
+    }
+
+    while (true)
+    {
+        iRet = Wmx3Lib_cm.GetStatus(&CmStatus);
+        if (iRet != ErrorCode::None || CmStatus.axesStatus[0].servoOn)
+        {
+            break;
+        }
+        Sleep(100);
+    }
+    if (iRet != ErrorCode::None)
+    {
+        return iRet;
+    }
+
+    Config::HomeParam homeParam;
+    iRet = Wmx3Lib_cm.config->GetHomeParam(0, &homeParam);
+    if (iRet == ErrorCode::None)
+    {
+        homeParam.homeType = Config::HomeType::CurrentPos;
+        iRet = Wmx3Lib_cm.config->SetHomeParam(0, &homeParam);
+    }
+    if (iRet == ErrorCode::None)
+    {
+        iRet = Wmx3Lib_cm.home->StartHome(0);
+    }
+    if (iRet == ErrorCode::None)
+    {
+        iRet = Wmx3Lib_cm.motion->Wait(0);
+    }
+    return iRet;
+}
+
+void Finalize()
+{
+    printf("Servo off...\n");
+    fflush(stdout);
+    Wmx3Lib_cm.axisControl->SetServoOn(0, 0);
+
+    for (unsigned int i = 0; i < 100; ++i)
+    {
+        if (Wmx3Lib_cm.GetStatus(&CmStatus) != ErrorCode::None ||
+            !CmStatus.axesStatus[0].servoOn)
+        {
+            break;
+        }
+        Sleep(100);
+    }
+
+    printf("Stopping communication...\n");
+    fflush(stdout);
+    Wmx3Lib.StopCommunication(INFINITE);
+    printf("Closing device...\n");
+    fflush(stdout);
+    Wmx3Lib.CloseDevice();
+}
+
+
+sine 파형 (부분)
+
+ 
+int _tmain(int argc, _TCHAR* argv[])
+{
+    const int axis = 0;
+    const double frequency = 1.0;       // Hz
+    const double amplitude = 3000.0;    // Unit depends on the axis command mode
+    const unsigned int measurementTime = 10000; // ms
+
+    printf("Program Start\n");
+    Sleep(1000);
+
+    Initialize();
+
+    // Save the current parameters so the machine configuration can be restored.
+    Config::ClosedLoopParam originalParam;
+    int iRet = Wmx3Lib_cm.config->GetClosedLoopParam(axis, &originalParam);
+    if (iRet != ErrorCode::None)
+    {
+        Finalize();
+        return iRet;
+    }
+
+    // Open-loop setup for frequency-response measurement.
+    Config::ClosedLoopParam sineParam = originalParam;
+    sineParam.pid.proportionalGain = 1.0;
+    sineParam.pid.integralGain = 0.0;
+    sineParam.pid.derivativeGain = 0.0;
+    sineParam.pid.controlOutputOffset = 0.0; // Change this to set an operating point.
+    sineParam.feedback.offset = 0.0;
+    sineParam.feedforward.offset = 0.0;
+    sineParam.feedback.dataSourceType = Config::DataSourceType::None;
+    sineParam.feedforward.dataSourceType = Config::DataSourceType::None;
+
+    Wmx3Lib_cm.GetStatus(&CmStatus);
+
+
+    iRet = Wmx3Lib_cm.config->SetClosedLoopParam(axis, &sineParam);
+    if (iRet != ErrorCode::None)
+    {
+        Finalize();
+        return iRet;
+    }
+
+    ClosedLoop::SineCommand sineCommand(axis, frequency, amplitude);
+    printf("Sine generator: axis=%d, frequency=%.3f Hz, amplitude=%.3f\n",
+        axis, frequency, amplitude);
+
+    iRet = Wmx3Lib_cm.closedLoop->StartSineGenerator(&sineCommand);
+    if (iRet == ErrorCode::None)
+    {
+        Sleep(measurementTime);
+        iRet = Wmx3Lib_cm.closedLoop->StopClosedLoop(axis);
+    }
+
+    int restoreRet = Wmx3Lib_cm.config->SetClosedLoopParam(axis, &originalParam);
+    if (restoreRet != ErrorCode::None && iRet == ErrorCode::None)
+    {
+        iRet = restoreRet;
+    }
+
+    Finalize();
+
+    printf("Program End\n");
+    Sleep(3000);
+    return iRet;
+}
+
+
+S-curve Input (부분)
+
+    Motion::PosCommand posCommand = Motion::PosCommand();
+    posCommand.profile.type             = ProfileType::Trapezoidal;
+    posCommand.axis                     = 0;
+    posCommand.profile.velocity         = 8000;
+    posCommand.profile.acc              = 10000;
+    posCommand.profile.dec              = 10000;
+
+    posCommand.target = 20000;
+    Wmx3Lib_cm.motion->StartPos(&posCommand);
+    Wmx3Lib_cm.motion->Wait(0);
+    Sleep(2000);
+
+    posCommand.target = -20000;
+    Wmx3Lib_cm.motion->StartMov(&posCommand);
+    Wmx3Lib_cm.motion->Wait(0);
+    Sleep(2000);

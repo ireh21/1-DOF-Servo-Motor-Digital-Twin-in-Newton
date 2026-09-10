@@ -1,0 +1,41 @@
+{
+  "motor_params": {
+    "kp": 0.23303367686865178,
+    "ki": 0.0,
+    "kd": 0.007724395727034785,
+    "integral_max": 5.0,
+    "continuous_torque_limit": 0.16,
+    "peak_torque_limit": 0.48,
+    "thermal_time_constant": 10.0,
+    "inertia": 0.0002240549907040991,
+    "viscous": 1.0000091888312144e-05,
+    "coulomb": 0.003432729715064069,
+    "delay_steps": 0,
+    "torque_response_time_constant": 0.0
+  },
+  "fit_logs": {
+    "step": "/mnt/c/Users/kate/Downloads/csv_data/step_v.csv",
+    "ramp": "/mnt/c/Users/kate/Downloads/csv_data/ramp_v.csv",
+    "sine_0.1hz": "/mnt/c/Users/kate/Downloads/csv_data/sine_0.1Hz.csv",
+    "sine_0.2hz": "/mnt/c/Users/kate/Downloads/csv_data/sine_0.2Hz.csv",
+    "sine_0.5hz": "/mnt/c/Users/kate/Downloads/csv_data/sine_0.5Hz.csv",
+    "sine_1hz": "/mnt/c/Users/kate/Downloads/csv_data/sine_1Hz.csv",
+    "sine_2hz": "/mnt/c/Users/kate/Downloads/csv_data/sine_2Hz.csv"
+  },
+  "validation_logs": {
+    "scurve_validation_1": "/mnt/c/Users/kate/Downloads/csv_data/SCurve.csv",
+    "scurve_validation_2": "/mnt/c/Users/kate/Downloads/csv_data/SCurve2.csv"
+  },
+  "fit_losses": {
+    "position": 0.5509056064806864,
+    "velocity": 8.008794621472216,
+    "torque": 0.003474040429011382,
+    "total": 2.6772002061544877
+  },
+  "validation_losses": {
+    "position": 1.690069565947519,
+    "velocity": 1.629088631831337,
+    "torque": 7.865166961739544e-05,
+    "total": 1.1793694434992448
+  }
+}
